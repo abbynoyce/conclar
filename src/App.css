@@ -971,6 +971,14 @@ div.switch-wrapper {
   min-width: 0;
 }
 
+/* The booklet number (e.g. "16.301") rendered in parentheses after a
+   talk or poster title. Slightly lighter so it doesn't compete with
+   the title itself. */
+.item-number {
+  font-weight: normal;
+  color: var(--program-tags-fg);
+}
+
 /* Hover-underline on the title text of parent (session) items so the
    row reads as clickable, like people links elsewhere.  Underline only
    the title text, not the type badge or chevron — those have their

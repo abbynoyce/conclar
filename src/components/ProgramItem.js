@@ -490,7 +490,12 @@ const parentTitle = parentItem ? parentItem.title : null;
               <div className="item-parent">{parentTitle}</div>
             )}
             <h3 className="item-title">
-              <span className="item-title-text">{item.title}</span>
+              <span className="item-title-text">
+                {item.title}
+                {/^\d+\.\d+$/.test(item.id) && (
+                  <span className="item-number"> ({item.id})</span>
+                )}
+              </span>
               {typeBadge}
               {chevron}
             </h3>
@@ -509,7 +514,12 @@ const parentTitle = parentItem ? parentItem.title : null;
               <div className="item-parent">{parentTitle}</div>
             )}
             <h3 className="item-title">
-              <span className="item-title-text">{item.title}</span>
+              <span className="item-title-text">
+                {item.title}
+                {/^\d+\.\d+$/.test(item.id) && (
+                  <span className="item-number"> ({item.id})</span>
+                )}
+              </span>
               {typeBadge}
               {permaLink}
             </h3>
