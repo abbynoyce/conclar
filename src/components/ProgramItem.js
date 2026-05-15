@@ -62,7 +62,18 @@ const ProgramItem = ({ item, forceExpanded, now }) => {
     if (directMatchedIds.has(item.id)) return allChildItems;
     return allChildItems.filter((c) => directMatchedIds.has(c.id));
   })();
-  const hasChildren = childItems.length > 0;
+  // `hasChildren` means "this item is a parent of something" — used for
+  // the .program-item--parent class regardless of whether a filter is
+  // currently hiding the children.
+  const hasChildren = allChildItems.length > 0;
+  // `childMatched` is true when at least one of this parent's children
+  // is in the active filter's direct-match set.  Used to auto-expand a
+  // session when search/filter has surfaced something inside it (so the
+  // user actually sees what matched, even though sessions are otherwise
+  // collapsed by default).
+  const childMatched =
+    !!directMatchedIds &&
+    allChildItems.some((c) => directMatchedIds.has(c.id));
 
   function toggleExpanded() {
     if (configData.INTERACTIVE) {
@@ -116,9 +127,11 @@ const ProgramItem = ({ item, forceExpanded, now }) => {
 
     // Toast when cascading toggled hidden children — i.e. the parent has
     // children, AND some of those children weren't visible at the time
-    // of the click (filter narrowed them out).  Avoids surprising the
-    // user with "I didn't see those, why are they in my schedule?".
-    const hiddenCount = allChildItems.length - childItems.length;
+    // of the click (either the parent is collapsed, or a filter narrowed
+    // them out).  Avoids surprising the user with "I didn't see those,
+    // why are they in my schedule?".
+    const visibleNow = showChildren ? childItems.length : 0;
+    const hiddenCount = allChildItems.length - visibleNow;
     if (allChildItems.length > 0 && hiddenCount > 0) {
       const total = allChildItems.length;
       const noun = childrenTypeLabel();
@@ -399,6 +412,12 @@ const parentTitle = parentItem ? parentItem.title : null;
 
   const [ref, bounds] = useMeasure();
   const showExpanded = !configData.INTERACTIVE || expanded || forceExpanded;
+  // Sessions render collapsed by default. Children show when:
+  //   - the user has clicked to expand the parent, OR
+  //   - a filter has surfaced one of this parent's children (so the
+  //     match is actually visible without an extra click).
+  const showChildren =
+    hasChildren && childItems.length > 0 && (showExpanded || childMatched);
   const [detailsVisible, setDetailsVisible] = useState(showExpanded);
 
   useEffect(() => {
@@ -430,6 +449,15 @@ const parentTitle = parentItem ? parentItem.title : null;
       ""
     );
 
+  // An item is "expandable" if its expanded panel has anything to show —
+  // a description, links, or nested children. Items without any of those
+  // (e.g. Break / Lounge rows that are pure schedule markers) render with
+  // no chevron, no toggle, and the permalink in the header instead.
+  const hasExpandableContent =
+    !!(safeDesc && String(safeDesc).trim()) ||
+    hasChildren ||
+    links.length > 0;
+
   return (
     <div id={id}
          className={
@@ -452,24 +480,48 @@ const parentTitle = parentItem ? parentItem.title : null;
           </label>
         </div>
       </div>
-      <div className="item-entry" onClick={toggleExpanded}>
-        <button id={'header-' + id} className="item-header" aria-expanded={showExpanded} aria-controls={'details-' + id}>
-          {parentTitle && (
-            <div className="item-parent">{parentTitle}</div>
-          )}
-          <h3 className="item-title">
-            {item.title}
-            {typeBadge}
-            {chevron}
-          </h3>
-          <div className="item-line2">
-            <div className="item-location">{locations}</div>
-            <div className="item-start-time">{startTime}</div>
-            {duration}
+      <div
+        className="item-entry"
+        onClick={hasExpandableContent ? toggleExpanded : undefined}
+      >
+        {hasExpandableContent ? (
+          <button id={'header-' + id} className="item-header" aria-expanded={showExpanded} aria-controls={'details-' + id}>
+            {parentTitle && (
+              <div className="item-parent">{parentTitle}</div>
+            )}
+            <h3 className="item-title">
+              <span className="item-title-text">{item.title}</span>
+              {typeBadge}
+              {chevron}
+            </h3>
+            <div className="item-line2">
+              <div className="item-location">{locations}</div>
+              <div className="item-start-time">{startTime}</div>
+              {duration}
+            </div>
+          </button>
+        ) : (
+          // Static (non-expandable) header — same shape as the button
+          // version but renders as a plain div, with the permalink taking
+          // the chevron's slot since there's no expanded panel to host it.
+          <div className="item-header item-header--static">
+            {parentTitle && (
+              <div className="item-parent">{parentTitle}</div>
+            )}
+            <h3 className="item-title">
+              <span className="item-title-text">{item.title}</span>
+              {typeBadge}
+              {permaLink}
+            </h3>
+            <div className="item-line2">
+              <div className="item-location">{locations}</div>
+              <div className="item-start-time">{startTime}</div>
+              {duration}
+            </div>
           </div>
-        </button>
+        )}
         {peopleInline}
-        {detailsVisible && (
+        {hasExpandableContent && detailsVisible && (
           <animated.div className="item-details" style={itemExpandedStyle} id={'details-' + id} role="region" aria-labelledby={'header-' + id}>
             <div className="item-details-expanded" ref={ref}>
               {permaLink}
@@ -484,8 +536,10 @@ const parentTitle = parentItem ? parentItem.title : null;
         )}
       </div>
 
-      {/* PR 1: nested children rendered inside parent's DOM tree. */}
-      {hasChildren && (
+      {/* PR 1: nested children rendered inside parent's DOM tree.
+          Phase 1 collapse: hidden by default, shown when the parent is
+          expanded OR when a filter has surfaced a matching child. */}
+      {showChildren && (
         <ul className="item-children">
           {childItems.map((child) => (
             <li key={child.id}>

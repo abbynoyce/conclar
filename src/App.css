@@ -829,6 +829,10 @@ div.switch-wrapper {
   flex-grow: 1;
   display: flex;
   flex-direction: column;
+  /* Allow this flex child to shrink below its intrinsic content width
+     so long titles inside .item-entry actually wrap rather than push
+     the whole column wider than its allocated track. */
+  min-width: 0;
 }
 
 .selection label {
@@ -846,6 +850,9 @@ div.switch-wrapper {
   margin-bottom: 0.25rem;
   max-width: 100%;
   display: flex;
+  /* Same min-width: 0 trick to allow long inner content to wrap rather
+     than overflow this flex item. */
+  min-width: 0;
 }
 
 .item ~ .item {
@@ -865,15 +872,41 @@ div.switch-wrapper {
   max-width: 100%;
   flex-grow: 1;
   flex-direction: column;
-  flex-wrap: wrap;
+  /* No flex-wrap here: combining column-direction with wrap causes
+     long children to flow into NEW COLUMNS rather than wrapping their
+     text, which breaks long titles and bylines. */
   word-break: break-word;
+  /* Allow this flex child to shrink below its intrinsic content width so
+     long titles wrap within themselves instead of pushing the whole
+     .item-entry to a new flex line below the checkbox.  This bites
+     specifically on parent items, which have flex-wrap:wrap on their
+     .item container (so .item-children can land on its own row). */
+  min-width: 0;
+  /* Subtle row-hover highlight, coordinated with the chevron tint so
+     the whole row reads as a click target. */
+  border-radius: 4px;
+  transition: background-color 0.12s ease;
+  cursor: pointer;
+}
+
+.item-entry:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--program-item-chevron-collapsed) 8%,
+    transparent
+  );
 }
 
 .item-header {
     border: none;
     margin: 0;
     padding: 0;
-    width: auto;
+    /* Explicitly fill the available width of .item-entry and allow
+       shrinking so long titles wrap inside the title element instead
+       of letting the button overflow horizontally. */
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
     overflow: visible;
     background: transparent;
     color: inherit;
@@ -883,14 +916,44 @@ div.switch-wrapper {
     -moz-osx-font-smoothing: inherit;
     -webkit-appearance: none;
     text-align: inherit;
+    /* User-agent styles set white-space: nowrap on <button> in many
+       browsers, which inherits into the <h3> title and prevents the
+       title from wrapping no matter what overflow-wrap rules say.
+       Explicitly reset. */
+    white-space: normal;
 }
+
 
 .item-chevron {
   float: right;
   color: var(--program-item-chevron-collapsed);
-  font-size: 1.5rem;
-  line-height: 1rem;
-  overflow: auto;
+  font-size: 1.85rem;
+  line-height: 1;
+  /* Treat the chevron as a button-shaped affordance so collapsed
+     sessions read as "click here to expand".  The background uses the
+     chevron's own color at low alpha (via color-mix) so it tracks both
+     light and dark themes automatically. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.15rem;
+  border-radius: 50%;
+  background-color: color-mix(
+    in srgb,
+    var(--program-item-chevron-collapsed) 12%,
+    transparent
+  );
+  transition: background-color 0.15s ease, color 0.15s ease;
+  cursor: pointer;
+}
+
+.item-header:hover .item-chevron,
+.item-entry:hover .item-chevron {
+  background-color: color-mix(
+    in srgb,
+    var(--program-item-chevron-collapsed) 25%,
+    transparent
+  );
 }
 
 .item-chevron-expanded {
@@ -901,6 +964,21 @@ div.switch-wrapper {
   font-weight: bold;
   margin: 0;
   font-size: inherit;
+  /* Allow long titles to wrap rather than overflow.  word-break is
+     inherited from .item-entry, but explicit overflow-wrap also
+     handles edge cases with long unbreakable tokens. */
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+/* Hover-underline on the title text of parent (session) items so the
+   row reads as clickable, like people links elsewhere.  Underline only
+   the title text, not the type badge or chevron — those have their
+   own hover treatment.  Skipped on child items because their title is
+   the text content, not an interactive disclosure. */
+.item.program-item--parent .item-entry:hover .item-title-text {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
 }
 
 /* Parent session kicker shown above the title for child items
@@ -949,6 +1027,14 @@ div.switch-wrapper {
 }
 .item--muted .item-type-badge {
   opacity: 0.85;
+}
+
+/* Static (non-expandable) header — pure schedule rows like Breaks and
+   Lounges that have no description, links, or children. Cursor stays
+   as default since the row isn't clickable. The permalink hosted in
+   the title row still floats right (.item-permalink). */
+.item-header--static {
+  cursor: default;
 }
 
 /* Item Type pill (Poster / Talk / Symposium / etc.) shown next to the
@@ -1123,6 +1209,12 @@ div.switch-wrapper {
   overflow: hidden;
   /* Give enough space for the focus ring on the header above. */
   margin-top: 3px;
+  /* Constrain width so long descriptions don't push the whole entry
+     past the viewport. */
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* .item-entry > .item-details.item-details-expanded {
@@ -1133,6 +1225,17 @@ div.switch-wrapper {
   padding: 0.5rem;
   border-radius: 0.5rem;
   overflow: auto;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.item-description {
+  /* Long abstracts should wrap rather than push the container wide. */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 100%;
+  min-width: 0;
 }
 
 /* Sharing on My Schedule. */
@@ -1486,7 +1589,23 @@ div.uninteractive div.info {
    it contains. */
 .item.program-item--parent {
   border-left: 4px solid #5a8acb;
-  flex-wrap: wrap;
+  /* Override the parent .item's display:flex with display:grid.  Grid's
+     `minmax(0, 1fr)` track gives us a column that shrinks to fit (so
+     long titles wrap) and expands to fill — flex's shrink algorithm
+     was unreliable here even with min-width: 0 on every flex child. */
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "selection entry"
+    "spacer    children";
+  flex-wrap: initial; /* not used in grid mode */
+}
+.item.program-item--parent > .item-selection { grid-area: selection; }
+.item.program-item--parent > .item-entry { grid-area: entry; min-width: 0; }
+.item.program-item--parent > .item-children {
+  grid-area: children;
+  /* Reset flex-basis since grid layout doesn't need it. */
+  flex-basis: auto;
 }
 .item.program-item--parent > .item-entry .item-title {
   font-weight: 600;
